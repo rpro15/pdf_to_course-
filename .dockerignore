@@ -1,0 +1,33 @@
+# VCS / metadata
+.git/
+.gitignore
+
+# Node / frontend
+node_modules/
+dist/
+build/
+coverage/
+
+# Python / backend
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+
+# Env / logs
+.env
+.env.*
+*.log*
+
+# Docker files
+Dockerfile*
+.dockerignore
+
+# Misc
+specs/
+README.md
+.vscode/
+.idea/
