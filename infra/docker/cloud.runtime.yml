@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  api:
+    image: pdf-to-course-backend:latest
+    environment:
+      CLOUD_RUNTIME: "true"
+      STORAGE_BACKEND: "cloud-blob"
+      QUEUE_BACKEND: "redis"
+      ARTIFACT_TTL_HOURS: "24"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    image: pdf-to-course-worker:latest
+    environment:
+      CLOUD_RUNTIME: "true"
+      STORAGE_BACKEND: "cloud-blob"
+      QUEUE_BACKEND: "redis"
+      ARTIFACT_TTL_HOURS: "24"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
