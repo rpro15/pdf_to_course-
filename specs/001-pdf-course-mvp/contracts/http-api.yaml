@@ -1,0 +1,267 @@
+openapi: 3.0.3
+info:
+  title: PDF-to-Course MVP API
+  version: 0.1.0
+servers:
+  - url: https://api.example.com
+paths:
+  /projects:
+    post:
+      summary: Create project and upload PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title]
+              properties:
+                title:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentProject'
+        '415':
+          description: Unsupported file type
+  /projects/{projectId}/process:
+    post:
+      summary: Start processing run for uploaded project
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [modelProfileId]
+              properties:
+                modelProfileId:
+                  type: string
+                  format: uuid
+      responses:
+        '202':
+          description: Processing queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingRun'
+        '409':
+          description: Language confirmation required before processing
+        '422':
+          description: Unsupported source (e.g. image-only PDF)
+  /projects/{projectId}/language-confirmation:
+    patch:
+      summary: Confirm detected document language before processing
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmedLanguage]
+              properties:
+                confirmedLanguage:
+                  type: string
+      responses:
+        '200':
+          description: Language confirmation saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentProject'
+        '409':
+          description: Confirmation not required for this project
+  /projects/{projectId}/modules:
+    get:
+      summary: List modules with summaries, quality score, and questions
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Modules list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourseModule'
+  /projects/{projectId}/modules/{moduleId}:
+    patch:
+      summary: Edit module content before export
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/ModuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                summaryText:
+                  type: string
+                questions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/QuestionItem'
+      responses:
+        '200':
+          description: Module updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseModule'
+  /projects/{projectId}/exports:
+    post:
+      summary: Build export package (JSON + Markdown)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '202':
+          description: Export package generation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportPackage'
+  /projects/{projectId}/exports/{exportId}/download:
+    get:
+      summary: Download final course package to local PC
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/ExportId'
+      responses:
+        '200':
+          description: ZIP file (`course.json` + `course.md`)
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '409':
+          description: Export package not ready
+        '410':
+          description: Export package expired
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    DocumentProject:
+      type: object
+      required: [id, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: [uploaded, awaiting_language_confirmation, processing, ready_for_review, ready_for_export, exported, failed]
+        detectedLanguage:
+          type: string
+          nullable: true
+        languageConfidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+        languageConfirmationRequired:
+          type: boolean
+    QuestionItem:
+      type: object
+      required: [questionText, questionType]
+      properties:
+        questionText:
+          type: string
+        questionType:
+          type: string
+          enum: [recall, understanding, application]
+    CourseModule:
+      type: object
+      required: [id, moduleIndex, title, summaryText, qualityScore, reviewRequired, questions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        moduleIndex:
+          type: integer
+        title:
+          type: string
+        summaryText:
+          type: string
+        qualityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        reviewRequired:
+          type: boolean
+        questions:
+          type: array
+          minItems: 8
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/QuestionItem'
+    ProcessingRun:
+      type: object
+      required: [id, status, modelProfileId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        modelProfileId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, partially_failed, completed, failed]
+    ExportPackage:
+      type: object
+      required: [id, status, format, files]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [building, ready, failed, expired]
+        format:
+          type: string
+          enum: [zip]
+        files:
+          type: array
+          items:
+            type: string
+            enum: [course.json, course.md]
